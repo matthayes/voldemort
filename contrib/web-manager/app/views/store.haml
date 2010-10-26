@@ -1,0 +1,44 @@
+%h2= @name
+%div
+  %h4 Serializers
+  %div
+    %table.store_table
+      %colgroup
+        %col#store_table_serializer
+        %col#store_table_name
+        %col#store_table_schema
+      %thead
+        %tr
+          %th Serializer
+          %th Name
+          %th Schema
+      %tbody
+        %tr
+          %td Key
+          %td= @store.key_serializer.name
+          %td= @store.key_serializer.schema_info 
+        %tr
+          %td Value
+          %td= @store.value_serializer.name
+          %td= @store.value_serializer.schema_info  
+%div
+  %h4 Entries
+  - if (@entries)
+    - if (@entries.length > 0)
+      %table.entry_table
+        %colgroup
+          %col#entry_table_key
+          %col#entry_table_value
+        %thead
+          %tr
+            %th Key
+            %th Value
+        %tbody
+          - @entries.each do |entry|
+            %tr
+              %td= "#{entry.getFirst}"
+              %td= "#{entry.getSecond}"
+    - else
+      %div None
+  - else
+    %div Entries could not be fetched
