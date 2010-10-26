@@ -4,17 +4,40 @@ require 'haml'
 
 include Java
 
-# load all the jar files
-libs = []
-libs << "lib/*.jar"
-libs << "../../lib/*.jar"
-libs << "../../dist/voldemort-0.81.jar"
-libs << "../../dist/voldemort-contrib-0.81.jar"
+# Load all the jar files...
 
-libs.each do |lib|
-  Dir[lib].each do |jar| 
+# In production Warbler places all JAR files under lib. 
+configure :production do
+  puts "Loading production JARs"
+  Dir["lib/*.jar"].each do |jar| 
     puts "requiring #{jar}"
     require jar 
+  end
+end
+
+# In development mode we need to pick up JARs from various locations.
+configure :development do
+  puts "Loading development JARs"
+  
+  libs = []
+  
+  # Voldemort dependencies...
+  libs << "../../lib/*.jar"
+  
+  # Voldemort itself...
+  libs << "../../dist/voldemort-0.81.jar"
+  
+  # The contrib JAR which has the AdminProxy class...
+  libs << "../../dist/voldemort-contrib-0.81.jar"
+  
+  # Pick up additional dependencies required by AdminProxy class.
+  libs << "lib/*.jar"
+
+  libs.each do |lib|
+    Dir[lib].each do |jar| 
+      puts "requiring #{jar}"
+      require jar 
+    end
   end
 end
 
