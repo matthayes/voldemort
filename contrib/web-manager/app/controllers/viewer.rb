@@ -45,10 +45,16 @@ include_class Java::voldemort.client.protocol.admin.proxy.AdminProxy
 include_class Java::voldemort.client.protocol.admin.proxy.StoreInfo
 include_class Java::voldemort.client.protocol.admin.proxy.SerializerInfo
 
-@@bootstrapUrl = "tcp://localhost:6666"
+helpers do
+  def getProxy(url)
+    AdminProxy.new("tcp://" + url)
+  end
+end
 
-def getProxy
-  AdminProxy.new(@@bootstrapUrl)
+before do
+  @bootstrap_host = "localhost"
+  @bootstrap_port = "6666"
+  @bootstrap_url = @bootstrap_host + ":" + @bootstrap_port
 end
 
 get '/' do
@@ -56,14 +62,14 @@ get '/' do
 end
 
 get '/stores' do
-  proxy = getProxy
+  proxy = getProxy(@bootstrap_url)
   @stores = proxy.getStores
   haml :index
 end
 
 get '/store/:name' do |name|
   @name = name
-  proxy = getProxy  
+  proxy = getProxy(@bootstrap_url)
   @store = proxy.getStore(name)
   halt 404 unless @store
   @entries = proxy.getEntries(name, 25)
@@ -75,7 +81,7 @@ get '/stores/new' do
 end
 
 post '/stores/new' do
-  proxy = getProxy
+  proxy = getProxy(@bootstrap_url)
    
   store = StoreInfo.new
   
