@@ -22,6 +22,26 @@
           %td= @store.value_serializer.name
           %td= @store.value_serializer.schema_info  
 %div
+  %h4 Fetch
+  %label Key:
+  %br
+  %input{:id=>"store_key", :name=>"store_key", :type=>"text", :value=>""}  
+  %input{:type=>"submit", :value=>"Get", :id => "store_key_submit"}
+  :javascript
+    $(document).ready(function() {
+      $("#store_key_submit").click(function() {
+        $("#store_value").text("");
+        var key = $("#store_key").attr('value');
+        $.get('#{url_for ("/store/" + @name + "/")}'+ key, function(data) {
+          $("#store_value").text(data);
+        })
+      })
+    });
+  %br
+  %label Value:
+  %br
+  %div{:id=>"store_value"}
+%div
   %h4 Entries
   - if (@entries)
     - if (@entries.length > 0)

@@ -84,6 +84,26 @@ get '/store/:name' do |name|
   haml :store
 end
 
+include_class Java::voldemort.client.SocketStoreClientFactory
+include_class Java::voldemort.client.ClientConfig
+
+get '/store/:name/:key' do |name, key|
+  config = ClientConfig.new
+  config.setBootstrapUrls("tcp://" + @bootstrap_url)
+  factory = SocketStoreClientFactory.new(config)
+  client = factory.getStoreClient(name)
+  
+  proxy = getProxy(@bootstrap_url)
+  @store = proxy.getStore(name)
+  key_schema = @store.key_serializer.schema_info
+  
+  if (key_schema =~ /int32/)
+    client.getValue(java.lang.Integer.new(key.to_i)).to_s  
+  else
+    client.getValue(key).to_s
+  end
+end
+
 get '/stores/new' do
   haml :store_new
 end
