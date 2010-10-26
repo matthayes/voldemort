@@ -24,12 +24,9 @@ configure :development do
   # Voldemort dependencies...
   libs << "../../lib/*.jar"
   
-  # Voldemort itself...
-  libs << "../../dist/voldemort-0.81.jar"
-  
-  # The contrib JAR which has the AdminProxy class...
-  libs << "../../dist/voldemort-contrib-0.81.jar"
-  
+  # Voldemort JARs...
+  libs << "../../dist/*.jar"
+    
   # Pick up additional dependencies required by AdminProxy class.
   libs << "lib/*.jar"
 
