@@ -23,8 +23,7 @@ Warbler::Config.new do |config|
   # own versions if you directly set the value
   config.java_libs += FileList[
     "../../lib/*.jar", 
-    "../../dist/voldemort-0.81.jar",
-    "../../dist/voldemort-contrib-0.81.jar"]
+    "../../dist/*.jar"]
 
   # Loose Java classes and miscellaneous files to be placed in WEB-INF/classes.
   # config.java_classes = FileList["target/classes/**.*"]
