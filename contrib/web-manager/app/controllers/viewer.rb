@@ -41,6 +41,8 @@ configure :development do
   end
 end
 
+enable :sessions
+
 include_class Java::voldemort.client.protocol.admin.proxy.AdminProxy
 include_class Java::voldemort.client.protocol.admin.proxy.StoreInfo
 include_class Java::voldemort.client.protocol.admin.proxy.SerializerInfo
@@ -52,8 +54,10 @@ helpers do
 end
 
 before do
-  @bootstrap_host = "localhost"
-  @bootstrap_port = "6666"
+  session["bootstrap_host"] ||= request.host
+  session["bootstrap_port"] ||= "6666"
+  @bootstrap_host = session["bootstrap_host"]
+  @bootstrap_port = session["bootstrap_port"]
   @bootstrap_url = @bootstrap_host + ":" + @bootstrap_port
 end
 
@@ -62,9 +66,16 @@ get '/' do
 end
 
 get '/stores' do
-  proxy = getProxy(@bootstrap_url)
-  @stores = proxy.getStores
-  haml :index
+  begin
+    proxy = getProxy(@bootstrap_url)
+  rescue
+  end
+  unless proxy.nil?
+    @stores = proxy.getStores
+    haml :index
+  else
+    haml :bad_url
+  end
 end
 
 get '/store/:name' do |name|
@@ -104,3 +115,12 @@ post '/stores/new' do
   redirect url_for '/stores'
 end
 
+get '/config' do
+  haml :config
+end
+
+post '/config' do
+  session["bootstrap_host"] = params["bootstrap_host"]
+  session["bootstrap_port"] = params["bootstrap_port"]
+  redirect url_for '/stores'
+end

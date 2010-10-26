@@ -9,7 +9,7 @@ body
 {
 	width: 80%;
 	background: #777777;
-	height: 60px;
+	height: 80px;
   margin-left: auto;
   margin-right: auto;
   border: thin solid black;
@@ -19,6 +19,12 @@ body
 #title
 {
 	margin: 10px;
+}
+
+#title h1 a:visited, #title h1 a:link
+{
+  color: black;
+  text-decoration: none;
 }
 
 #outer
@@ -67,4 +73,10 @@ body
 #store_form input#store_value_schema
 {
 	width: 400px;
+}
+
+#config_form input#bootstrap_host,
+#config_form input#bootstrap_port
+{
+  width: 200px;
 }
