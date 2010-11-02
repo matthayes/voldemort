@@ -106,20 +106,23 @@ public class AdminProxy
       SerializerDefinition valueSerializer = null;
       keySerializer = def.getKeySerializer();      
       valueSerializer = def.getValueSerializer();  
-      
+            
       // Only JSON serialization is supported since others require external libraries.
       // TODO: How to indicate to Sinatra that this type isn't supported?
-      if (!keySerializer.getName().equals("json") || !valueSerializer.getName().equals("json"))
+      String keySerializerName = keySerializer.getName();
+      String valueSerializerName = valueSerializer.getName();
+      if ((!keySerializerName.equals("json") && !keySerializerName.equals("string"))
+          || (!valueSerializerName.equals("json") && !valueSerializerName.equals("identity")))
       {
         // entries cannot be deserialized unless both are JSON
         return null;
       }
       
-      Iterator<Pair<ByteArray, Versioned<byte[]>>> entries = client.fetchEntries(0, storeName, partitions, new DefaultVoldemortFilter(), false /* fetchMasterEntries */);
+      Iterator<Pair<ByteArray, Versioned<byte[]>>> entries = client.fetchEntries(0, storeName, partitions, new DefaultVoldemortFilter(), false);
       List<Pair<String,String>> result = new ArrayList<Pair<String,String>>();
       
       boolean hasAny = false;
-      
+            
       try
       {
         hasAny = entries.hasNext();
@@ -149,17 +152,17 @@ public class AdminProxy
           Object valueObj = valueS.toObject(second);
           
           JSON value = null;
-          
+                    
           if (valueObj instanceof java.util.ArrayList)
           {
             value = JSONArray.fromObject(valueObj);            
           }
-          else
+          else if (valueObj instanceof java.util.HashMap)
           {
             value = JSONObject.fromObject(valueObj); 
           }
           
-          result.add(new Pair<String,String>(key.toString(), value.toString(1)));   
+          result.add(new Pair<String,String>(key.toString(), value != null ? value.toString(1) : ""));
         }
       }
       
