@@ -6,6 +6,8 @@ import java.util.Iterator;
 import java.util.List;
 
 import net.sf.json.JSONObject;
+import net.sf.json.JSONArray;
+import net.sf.json.JSON;
 import voldemort.VoldemortException;
 import voldemort.client.RoutingTier;
 import voldemort.client.protocol.admin.AdminClient;
@@ -146,9 +148,18 @@ public class AdminProxy
           Object key = keyS.toObject(first);
           Object valueObj = valueS.toObject(second);
           
-          JSONObject value = JSONObject.fromObject(valueObj);          
+          JSON value = null;
           
-          result.add(new Pair<String,String>(key.toString(), value.toString(1)));        
+          if (valueObj instanceof java.util.ArrayList)
+          {
+            value = JSONArray.fromObject(valueObj);            
+          }
+          else
+          {
+            value = JSONObject.fromObject(valueObj); 
+          }
+          
+          result.add(new Pair<String,String>(key.toString(), value.toString(1)));   
         }
       }
       
