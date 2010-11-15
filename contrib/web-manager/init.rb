@@ -7,9 +7,8 @@ require 'sinatra/url_for'
 
 # add controllers and views
 configure do
-  root = File.expand_path(File.dirname(__FILE__))
-  set :views, File.join(root, 'app', 'views')
+  set :views, File.expand_path("../app/views", __FILE__)
 end
 
 # Load the controllers.
-Dir["app/controllers/*.rb"].each { |file| load file }
+Dir[File.expand_path("../app/controllers/*.rb", __FILE__)].each { |file| load file }

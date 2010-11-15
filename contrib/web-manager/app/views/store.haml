@@ -15,12 +15,12 @@
       %tbody
         %tr
           %td Key
-          %td= @store.key_serializer.name
-          %td= @store.key_serializer.schema_info 
+          %td= @store.key_info.name
+          %td= @store.key_info.schema
         %tr
           %td Value
-          %td= @store.value_serializer.name
-          %td= @store.value_serializer.schema_info  
+          %td= @store.value_info.name
+          %td= @store.value_info.schema
 %div
   %h4 Fetch
   %label Key:
@@ -56,8 +56,11 @@
         %tbody
           - @entries.each do |entry|
             %tr
-              %td= "#{entry.getFirst}"
-              %td= "#{entry.getSecond}"
+              %td= "#{entry[0]}"
+              %td= "#{entry[1]}"
+          - if @has_more
+            %td
+            %td= "Limited #{@limit} results"
     - else
       %div No entries were found.  If this is a read-only store then listing entries is not supported.
   - else

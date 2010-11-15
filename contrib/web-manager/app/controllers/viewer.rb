@@ -26,9 +26,6 @@ configure :development do
   
   # Voldemort JARs...
   libs << "../../dist/*.jar"
-    
-  # Pick up additional dependencies required by AdminProxy class.
-  libs << "lib/*.jar"
 
   libs.each do |lib|
     Dir[lib].each do |jar| 
@@ -39,16 +36,6 @@ configure :development do
 end
 
 enable :sessions
-
-include_class Java::voldemort.client.protocol.admin.proxy.AdminProxy
-include_class Java::voldemort.client.protocol.admin.proxy.StoreInfo
-include_class Java::voldemort.client.protocol.admin.proxy.SerializerInfo
-
-helpers do
-  def getProxy(url)
-    AdminProxy.new("tcp://" + url)
-  end
-end
 
 before do
   session["bootstrap_host"] ||= request.host
@@ -64,11 +51,12 @@ end
 
 get '/stores' do
   begin
-    proxy = getProxy(@bootstrap_url)
+    proxy = VoldemortAdmin::AdminProxy.new(@bootstrap_host, @bootstrap_port)
+    @stores = proxy.stores
   rescue
   end
-  unless proxy.nil?
-    @stores = proxy.getStores
+  unless @stores.nil?    
+    @stores.sort!
     haml :index
   else
     haml :bad_url
@@ -77,10 +65,14 @@ end
 
 get '/store/:name' do |name|
   @name = name
-  proxy = getProxy(@bootstrap_url)
-  @store = proxy.getStore(name)
+  proxy = VoldemortAdmin::AdminProxy.new(@bootstrap_host, @bootstrap_port)
+  @store = proxy.store(name)
   halt 404 unless @store
-  @entries = proxy.getEntries(name, 25)
+  @limit = 25
+  fetch_count = @limit + 1
+  @entries = proxy.entries(name, fetch_count)
+  @has_more = @entries.size >= fetch_count
+  @entries = @entries.take(@limit)
   haml :store
 end
 
@@ -93,10 +85,13 @@ get '/store/:name/:key' do |name, key|
   factory = SocketStoreClientFactory.new(config)
   client = factory.getStoreClient(name)
   
-  proxy = getProxy(@bootstrap_url)
-  @store = proxy.getStore(name)
-  key_schema = @store.key_serializer.schema_info
+  proxy = VoldemortAdmin::AdminProxy.new(@bootstrap_host, @bootstrap_port)
+  @store = proxy.store(name)
+  key_schema = @store.key_info.schema
   
+  # TODO: This only supports keys which are int32 or strings.  Figure out how a string
+  # can be passed from the browser and converted to the appropriate type before calling
+  # client.getValue.
   if (key_schema =~ /int32/)
     client.getValue(java.lang.Integer.new(key.to_i)).to_s  
   else
@@ -108,26 +103,24 @@ get '/stores/new' do
   haml :store_new
 end
 
+require 'app/helpers/VoldemortAdmin'
+
 post '/stores/new' do
-  proxy = getProxy(@bootstrap_url)
-   
-  store = StoreInfo.new
-  
-  store.name = params[:store_name]
-  
-  key_info = SerializerInfo.new
-  value_info = SerializerInfo.new
-  
+  key_info = VoldemortAdmin::SerializerInfo.new
   key_info.name = params[:store_key_name]
-  key_info.schema_info = params[:store_key_schema]
+  key_info.schema = params[:store_key_schema]
   
+  value_info = VoldemortAdmin::SerializerInfo.new
   value_info.name = params[:store_value_name]
-  value_info.schema_info = params[:store_value_schema]  
+  value_info.schema = params[:store_value_schema]
   
-  store.key_serializer = key_info
-  store.value_serializer = value_info
+  store_info = VoldemortAdmin::StoreInfo.new
+  store_info.name = params[:store_name]
+  store_info.key_info = key_info
+  store_info.value_info = value_info
   
-  proxy.create_store(store)
+  proxy = VoldemortAdmin::AdminProxy.new(@bootstrap_host, @bootstrap_port)
+  proxy.create_store(store_info)
   
   redirect url_for '/stores'
 end
