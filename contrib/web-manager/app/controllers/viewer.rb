@@ -4,47 +4,6 @@ require 'haml'
 
 include Java
 
-# Load all the jar files...
-
-# In production Warbler places all JAR files under lib. 
-configure :production do
-  puts "Loading production JARs"
-  Dir["lib/*.jar"].each do |jar| 
-    puts "requiring #{jar}"
-    require jar 
-  end
-end
-
-# In development mode we need to pick up JARs from various locations.
-configure :development do
-  puts "Loading development JARs"
-  
-  libs = []
-  
-  # Voldemort dependencies...
-  libs << "../../lib/*.jar"
-  
-  # Voldemort JARs...
-  libs << "../../dist/*.jar"
-
-  libs.each do |lib|
-    Dir[lib].each do |jar| 
-      puts "requiring #{jar}"
-      require jar 
-    end
-  end
-end
-
-enable :sessions
-
-before do
-  session["bootstrap_host"] ||= request.host
-  session["bootstrap_port"] ||= "6666"
-  @bootstrap_host = session["bootstrap_host"]
-  @bootstrap_port = session["bootstrap_port"]
-  @bootstrap_url = @bootstrap_host + ":" + @bootstrap_port
-end
-
 get '/' do
   redirect url_for '/stores'
 end

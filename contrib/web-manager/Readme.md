@@ -12,11 +12,11 @@ The web manager use the Voldemort admin client to expose a web interface to Vold
 
 First install JRuby.  Then run the following command to install the required gems.
 
-sudo jruby -S gem install sinatra emk-sinatra-url-for haml warbler
+sudo jruby -S gem install sinatra emk-sinatra-url-for haml warbler sinatra-reloader
 
 ## Building ##
 
-Simply build from the Voldemort root directory using "ant".  The Java classes used by the web manager will be built and packaged in the contrib JAR.  
+Simply build from the Voldemort root directory using "ant".  The web manager is written in Ruby but it needs the Voldemort JARs.  
 
 ## Running ##
 
