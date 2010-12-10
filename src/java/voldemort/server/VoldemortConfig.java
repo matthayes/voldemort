@@ -24,6 +24,7 @@ import java.util.Properties;
 
 import voldemort.client.protocol.RequestFormatType;
 import voldemort.cluster.failuredetector.FailureDetectorConfig;
+import voldemort.server.scheduler.slop.StreamingSlopPusherJob;
 import voldemort.store.bdb.BdbStorageConfiguration;
 import voldemort.store.memory.CacheStorageConfiguration;
 import voldemort.store.memory.InMemoryStorageConfiguration;
@@ -55,8 +56,6 @@ public class VoldemortConfig implements Serializable {
     private String voldemortHome;
     private String dataDirectory;
     private String metadataDirectory;
-
-    private String slopStoreType;
 
     private long bdbCacheSize;
     private boolean bdbWriteTransactions;
@@ -127,7 +126,12 @@ public class VoldemortConfig implements Serializable {
 
     private Props allProps;
 
-    private final long pusherPollMs;
+    private String slopStoreType;
+    private String pusherType;
+    private final long slopFrequencyMs;
+    private long slopMaxWriteBytesPerSec, slopMaxReadBytesPerSec;
+    private int slopBatchSize;
+    private int slopZonesDownToTerminate;
 
     private int adminCoreThreads;
     private int adminMaxThreads;
@@ -137,14 +141,6 @@ public class VoldemortConfig implements Serializable {
 
     private long streamMaxReadBytesPerSec;
     private long streamMaxWriteBytesPerSec;
-
-    public int getGossipInterval() {
-        return gossipInterval;
-    }
-
-    public void setGossipInterval(int gossipInterval) {
-        this.gossipInterval = gossipInterval;
-    }
 
     private int gossipInterval;
     private String failureDetectorImplementation;
@@ -204,8 +200,6 @@ public class VoldemortConfig implements Serializable {
                                                                              + File.separator
                                                                              + "read-only");
 
-        this.slopStoreType = props.getString("slop.store.engine", BdbStorageConfiguration.TYPE_NAME);
-
         this.mysqlUsername = props.getString("mysql.user", "root");
         this.mysqlPassword = props.getString("mysql.password", "");
         this.mysqlHost = props.getString("mysql.host", "localhost");
@@ -251,8 +245,7 @@ public class VoldemortConfig implements Serializable {
         this.enableSocketServer = props.getBoolean("socket.enable", true);
         this.enableAdminServer = props.getBoolean("admin.enable", true);
         this.enableJmx = props.getBoolean("jmx.enable", true);
-        this.enablePipelineRoutedStore = props.getBoolean("enable.pipeline.routed.store", false);
-        this.enableSlop = props.getBoolean("slop.enable", true);
+       this.enablePipelineRoutedStore = props.getBoolean("enable.pipeline.routed.store", true);
         this.enableVerboseLogging = props.getBoolean("enable.verbose.logging", true);
         this.enableStatTracking = props.getBoolean("enable.stat.tracking", true);
         this.enableServerRouting = props.getBoolean("enable.server.routing", true);
@@ -262,7 +255,15 @@ public class VoldemortConfig implements Serializable {
         this.enableRebalanceService = props.getBoolean("enable.rebalancing", true);
 
         this.gossipInterval = props.getInt("gossip.interval.ms", 30 * 1000);
-        this.pusherPollMs = props.getInt("pusher.poll.ms", 2 * 60 * 1000);
+
+        this.enableSlop = props.getBoolean("slop.enable", true);
+        this.slopMaxWriteBytesPerSec = props.getBytes("slop.write.byte.per.sec", 10 * 1000 * 1000);
+        this.slopMaxReadBytesPerSec = props.getBytes("slop.read.byte.per.sec", 10 * 1000 * 1000);
+        this.slopStoreType = props.getString("slop.store.engine", BdbStorageConfiguration.TYPE_NAME);
+        this.slopFrequencyMs = props.getLong("slop.frequency.ms", 5 * 60 * 1000);
+        this.slopBatchSize = props.getInt("slop.batch.size", 100);
+        this.pusherType = props.getString("pusher.type", StreamingSlopPusherJob.TYPE_NAME);
+        this.slopZonesDownToTerminate = props.getInt("slop.zone.terminate", 1);
 
         this.schedulerThreads = props.getInt("scheduler.threads", 6);
 
@@ -292,7 +293,7 @@ public class VoldemortConfig implements Serializable {
         // rebalancing parameters
         this.maxRebalancingAttempt = props.getInt("max.rebalancing.attempts", 3);
         this.rebalancingTimeoutInSeconds = props.getInt("rebalancing.timeout.seconds", 60 * 60);
-        this.rebalancingServicePeriod = props.getInt("rebalancing.service.period.ms", 1000);
+        this.rebalancingServicePeriod = props.getInt("rebalancing.service.period.ms", 1000 * 60);
         this.maxParallelStoresRebalancing = props.getInt("max.parallel.stores.rebalancing", 3);
 
         this.failureDetectorImplementation = props.getString("failuredetector.implementation",
@@ -334,8 +335,8 @@ public class VoldemortConfig implements Serializable {
             throw new IllegalArgumentException("core.threads cannot be greater than max.threads.");
         if(maxThreads < 1)
             throw new ConfigurationException("max.threads cannot be less than 1.");
-        if(pusherPollMs < 1)
-            throw new ConfigurationException("pusher.poll.ms cannot be less than 1.");
+        if(slopFrequencyMs < 1)
+            throw new ConfigurationException("slop.frequency.ms cannot be less than 1.");
         if(socketTimeoutMs < 0)
             throw new ConfigurationException("socket.timeout.ms must be 0 or more ms.");
         if(clientSelectors < 1)
@@ -393,6 +394,17 @@ public class VoldemortConfig implements Serializable {
         }
 
         return new VoldemortConfig(properties);
+    }
+
+    /**
+     * The interval at which gossip is run to exchange metadata
+     */
+    public int getGossipInterval() {
+        return gossipInterval;
+    }
+
+    public void setGossipInterval(int gossipInterval) {
+        this.gossipInterval = gossipInterval;
     }
 
     /**
@@ -636,6 +648,22 @@ public class VoldemortConfig implements Serializable {
         this.streamMaxWriteBytesPerSec = streamMaxWriteBytesPerSec;
     }
 
+    public long getSlopMaxWriteBytesPerSec() {
+        return slopMaxWriteBytesPerSec;
+    }
+
+    public void setSlopMaxWriteBytesPerSec(long slopMaxWriteBytesPerSec) {
+        this.slopMaxWriteBytesPerSec = slopMaxWriteBytesPerSec;
+    }
+
+    public long getSlopMaxReadBytesPerSec() {
+        return slopMaxReadBytesPerSec;
+    }
+
+    public void setSlopMaxReadBytesPerSec(long slopMaxReadBytesPerSec) {
+        this.slopMaxReadBytesPerSec = slopMaxReadBytesPerSec;
+    }
+
     public void setEnableAdminServer(boolean enableAdminServer) {
         this.enableAdminServer = enableAdminServer;
     }
@@ -654,10 +682,6 @@ public class VoldemortConfig implements Serializable {
 
     public void setEnablePipelineRoutedStore(boolean enablePipelineRoutedStore) {
         this.enablePipelineRoutedStore = enablePipelineRoutedStore;
-    }
-
-    public long getPusherPollMs() {
-        return pusherPollMs;
     }
 
     public boolean isGuiEnabled() {
@@ -708,6 +732,10 @@ public class VoldemortConfig implements Serializable {
         this.mysqlPort = mysqlPort;
     }
 
+    /**
+     * The underlying store type which will be used to store slops. Defaults to
+     * Bdb
+     */
     public String getSlopStoreType() {
         return slopStoreType;
     }
@@ -716,8 +744,46 @@ public class VoldemortConfig implements Serializable {
         this.slopStoreType = slopStoreType;
     }
 
+    /**
+     * The type of streaming job we would want to use to send hints. Defaults to
+     * streaming
+     */
+    public String getPusherType() {
+        return this.pusherType;
+    }
+
+    public void setPusherType(String pusherType) {
+        this.pusherType = pusherType;
+    }
+
+    /**
+     * Number of zones declared down before we terminate the pusher job
+     */
+    public int getSlopZonesDownToTerminate() {
+        return this.slopZonesDownToTerminate;
+    }
+
+    public void setSlopZonesDownToTerminate(int slopZonesDownToTerminate) {
+        this.slopZonesDownToTerminate = slopZonesDownToTerminate;
+    }
+
+    /**
+     * Returns the size of the batch used while streaming slops
+     */
+    public int getSlopBatchSize() {
+        return this.slopBatchSize;
+    }
+
+    public void setSlopBatchSize(int slopBatchSize) {
+        this.slopBatchSize = slopBatchSize;
+    }
+
     public int getSocketTimeoutMs() {
         return this.socketTimeoutMs;
+    }
+
+    public long getSlopFrequencyMs() {
+        return this.slopFrequencyMs;
     }
 
     public void setSocketTimeoutMs(int socketTimeoutMs) {

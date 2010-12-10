@@ -18,40 +18,59 @@ package voldemort.scheduled;
 
 import static voldemort.TestUtils.bytesEqual;
 
+import java.util.Arrays;
 import java.util.Date;
+import java.util.List;
 
 import junit.framework.TestCase;
+import voldemort.ServerTestUtils;
 import voldemort.TestUtils;
+import voldemort.cluster.Cluster;
+import voldemort.cluster.Node;
+import voldemort.cluster.failuredetector.NoopFailureDetector;
 import voldemort.server.StoreRepository;
-import voldemort.server.scheduler.SlopPusherJob;
+import voldemort.server.scheduler.slop.BlockingSlopPusherJob;
 import voldemort.store.FailingStore;
 import voldemort.store.memory.InMemoryStorageEngine;
+import voldemort.store.metadata.MetadataStore;
 import voldemort.store.slop.Slop;
+import voldemort.store.slop.SlopStorageEngine;
 import voldemort.store.slop.Slop.Operation;
 import voldemort.utils.ByteArray;
 import voldemort.versioning.Versioned;
 
-public class SlopPusherTest extends TestCase {
+import com.google.common.collect.Lists;
+
+public class BlockingSlopPusherTest extends TestCase {
 
     private final static String STORE_NAME = "test";
 
-    private SlopPusherJob pusher;
+    private BlockingSlopPusherJob pusher;
     private StoreRepository repo;
-    private int failingNodeId;
-
-    public SlopPusherTest(String name) {
-        super(name);
-    }
 
     @Override
     protected void setUp() throws Exception {
+        Cluster cluster = makeCluster(3);
         repo = new StoreRepository();
-        repo.setSlopStore(new InMemoryStorageEngine<ByteArray, Slop>("slop"));
-        repo.addNodeStore(0, new InMemoryStorageEngine<ByteArray, byte[]>(STORE_NAME));
-        repo.addNodeStore(1, new InMemoryStorageEngine<ByteArray, byte[]>(STORE_NAME));
-        this.failingNodeId = 2;
-        repo.addNodeStore(failingNodeId, new FailingStore<ByteArray, byte[]>(STORE_NAME));
-        pusher = new SlopPusherJob(repo);
+        repo.setSlopStore(new SlopStorageEngine(new InMemoryStorageEngine<ByteArray, byte[], byte[]>("slop"),
+                                                cluster));
+        repo.addNodeStore(0, new InMemoryStorageEngine<ByteArray, byte[], byte[]>(STORE_NAME));
+        repo.addNodeStore(1, new InMemoryStorageEngine<ByteArray, byte[], byte[]>(STORE_NAME));
+        repo.addNodeStore(2, new FailingStore<ByteArray, byte[], byte[]>(STORE_NAME));
+
+        MetadataStore metadataStore = ServerTestUtils.createMetadataStore(cluster,
+                                                                          ServerTestUtils.getStoreDefs(1));
+        pusher = new BlockingSlopPusherJob(repo,
+                                           metadataStore,
+                                           new NoopFailureDetector(),
+                                           10 * 1000 * 1000);
+    }
+
+    private Cluster makeCluster(int numNodes) {
+        List<Node> nodes = Lists.newArrayList();
+        for(int i = 0; i < numNodes; i++)
+            nodes.add(new Node(i, Integer.toString(i), 1234, 1235, 1236, Arrays.asList(i)));
+        return new Cluster("cluster", nodes);
     }
 
     private Versioned<Slop> randomSlop(String name, int nodeId) {
@@ -66,7 +85,7 @@ public class SlopPusherTest extends TestCase {
     private void pushSlop(Versioned<Slop>... slops) {
         // put all the slop in the slop store
         for(Versioned<Slop> s: slops)
-            repo.getSlopStore().put(s.getValue().makeKey(), s);
+            repo.getSlopStore().asSlopStore().put(s.getValue().makeKey(), s, null);
 
         // run the pusher
         pusher.run();
@@ -81,16 +100,16 @@ public class SlopPusherTest extends TestCase {
             // and no new slops have appeared
             // and the SloppyStore is now empty
             Slop slop = vs.getValue();
-            assertEquals("Slop remains.", 0, repo.getSlopStore().get(slop.makeKey()).size());
+            assertEquals("Slop remains.", 0, repo.getSlopStore().get(slop.makeKey(), null).size());
             assertTrue(bytesEqual(slop.getValue(), repo.getNodeStore(STORE_NAME, slop.getNodeId())
-                                                       .get(slop.makeKey())
+                                                       .get(slop.getKey(), null)
                                                        .get(0)
                                                        .getValue()));
         }
         // check that all undelivered slop is undelivered
         for(Versioned<Slop> vs: undelivered) {
             Slop slop = vs.getValue();
-            assertEquals("Slop is gone!", 1, repo.getSlopStore().get(slop.makeKey()).size());
+            assertEquals("Slop is gone!", 1, repo.getSlopStore().get(slop.makeKey(), null).size());
         }
     }
 
@@ -110,7 +129,7 @@ public class SlopPusherTest extends TestCase {
     public void testSlopWithFailingStore() {
         Versioned<Slop> good1 = randomSlop(STORE_NAME, 0);
         Versioned<Slop> good2 = randomSlop(STORE_NAME, 1);
-        Versioned<Slop> bad = randomSlop(STORE_NAME, this.failingNodeId);
+        Versioned<Slop> bad = randomSlop(STORE_NAME, 2);
         pushSlop(good1, bad, good2);
         checkPush(new Versioned[] { good1, good2 }, new Versioned[] { bad });
     }
