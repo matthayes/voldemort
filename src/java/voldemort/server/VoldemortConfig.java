@@ -69,7 +69,15 @@ public class VoldemortConfig implements Serializable {
     private boolean bdbOneEnvPerStore;
     private int bdbCleanerMinFileUtilization;
     private int bdbCleanerMinUtilization;
+    private int bdbCleanerLookAheadCacheSize;
+    private boolean bdbCheckpointerHighPriority;
+    private int bdbCleanerMaxBatchFiles;
+
     private boolean bdbCursorPreload;
+    private int bdbCleanerThreads;
+    private long bdbLockTimeoutMs;
+    private int bdbLockNLockTables;
+    private boolean bdbFairLatches;
 
     private String mysqlUsername;
     private String mysqlPassword;
@@ -102,11 +110,13 @@ public class VoldemortConfig implements Serializable {
 
     private int schedulerThreads;
 
-    private int numCleanupPermits;
+    private int numScanPermits;
 
     private RequestFormatType requestFormatType;
 
     private boolean enableSlop;
+    private boolean enableSlopPusherJob;
+    private boolean enableRepair;
     private boolean enableGui;
     private boolean enableHttpServer;
     private boolean enableSocketServer;
@@ -121,6 +131,7 @@ public class VoldemortConfig implements Serializable {
     private boolean enableNetworkClassLoader;
     private boolean enableGossip;
     private boolean enableRebalanceService;
+    private boolean enableGrandfather;
 
     private List<String> storageConfigurations;
 
@@ -128,8 +139,10 @@ public class VoldemortConfig implements Serializable {
 
     private String slopStoreType;
     private String pusherType;
-    private final long slopFrequencyMs;
-    private long slopMaxWriteBytesPerSec, slopMaxReadBytesPerSec;
+    private long slopFrequencyMs;
+    private final long repairFrequencyMs;
+    private long slopMaxWriteBytesPerSec;
+    private long slopMaxReadBytesPerSec;
     private int slopBatchSize;
     private int slopZonesDownToTerminate;
 
@@ -189,6 +202,13 @@ public class VoldemortConfig implements Serializable {
         this.bdbOneEnvPerStore = props.getBoolean("bdb.one.env.per.store", false);
         this.bdbCleanerMinFileUtilization = props.getInt("bdb.cleaner.min.file.utilization", 5);
         this.bdbCleanerMinUtilization = props.getInt("bdb.cleaner.minUtilization", 50);
+        this.bdbCleanerThreads = props.getInt("bdb.cleaner.threads", 1);
+        this.bdbCleanerLookAheadCacheSize = props.getInt("bdb.cleaner.lookahead.cache.size", 8192);
+        this.bdbLockTimeoutMs = props.getLong("bdb.lock.timeout.ms", 500);
+        this.bdbLockNLockTables = props.getInt("bdb.lock.nLockTables", 1);
+        this.bdbFairLatches = props.getBoolean("bdb.fair.latches", false);
+        this.bdbCheckpointerHighPriority = props.getBoolean("bdb.checkpointer.high.priority", false);
+        this.bdbCleanerMaxBatchFiles = props.getInt("bdb.cleaner.max.batch.files", 0);
 
         // enabling preload make cursor slow for insufficient bdb cache size.
         this.bdbCursorPreload = props.getBoolean("bdb.cursor.preload", false);
@@ -245,7 +265,10 @@ public class VoldemortConfig implements Serializable {
         this.enableSocketServer = props.getBoolean("socket.enable", true);
         this.enableAdminServer = props.getBoolean("admin.enable", true);
         this.enableJmx = props.getBoolean("jmx.enable", true);
-       this.enablePipelineRoutedStore = props.getBoolean("enable.pipeline.routed.store", true);
+        this.enablePipelineRoutedStore = props.getBoolean("enable.pipeline.routed.store", true);
+        this.enableSlop = props.getBoolean("slop.enable", true);
+        this.enableSlopPusherJob = props.getBoolean("slop.pusher.enable", true);
+        this.slopMaxWriteBytesPerSec = props.getBytes("slop.write.byte.per.sec", 10 * 1000 * 1000);
         this.enableVerboseLogging = props.getBoolean("enable.verbose.logging", true);
         this.enableStatTracking = props.getBoolean("enable.stat.tracking", true);
         this.enableServerRouting = props.getBoolean("enable.server.routing", true);
@@ -253,21 +276,23 @@ public class VoldemortConfig implements Serializable {
         this.enableRedirectRouting = props.getBoolean("enable.redirect.routing", true);
         this.enableGossip = props.getBoolean("enable.gossip", false);
         this.enableRebalanceService = props.getBoolean("enable.rebalancing", true);
+        this.enableGrandfather = props.getBoolean("enable.grandfather", true);
+        this.enableRepair = props.getBoolean("enable.repair", false);
 
         this.gossipInterval = props.getInt("gossip.interval.ms", 30 * 1000);
 
-        this.enableSlop = props.getBoolean("slop.enable", true);
         this.slopMaxWriteBytesPerSec = props.getBytes("slop.write.byte.per.sec", 10 * 1000 * 1000);
         this.slopMaxReadBytesPerSec = props.getBytes("slop.read.byte.per.sec", 10 * 1000 * 1000);
         this.slopStoreType = props.getString("slop.store.engine", BdbStorageConfiguration.TYPE_NAME);
         this.slopFrequencyMs = props.getLong("slop.frequency.ms", 5 * 60 * 1000);
+        this.repairFrequencyMs = props.getLong("repair.frequency.ms", 24 * 60 * 60 * 1000);
         this.slopBatchSize = props.getInt("slop.batch.size", 100);
         this.pusherType = props.getString("pusher.type", StreamingSlopPusherJob.TYPE_NAME);
-        this.slopZonesDownToTerminate = props.getInt("slop.zone.terminate", 1);
+        this.slopZonesDownToTerminate = props.getInt("slop.zones.terminate", 0);
 
         this.schedulerThreads = props.getInt("scheduler.threads", 6);
 
-        this.numCleanupPermits = props.getInt("num.cleanup.permits", 1);
+        this.numScanPermits = props.getInt("num.scan.permits", 1);
 
         this.storageConfigurations = props.getList("storage.configs",
                                                    ImmutableList.of(BdbStorageConfiguration.class.getName(),
@@ -292,7 +317,7 @@ public class VoldemortConfig implements Serializable {
 
         // rebalancing parameters
         this.maxRebalancingAttempt = props.getInt("max.rebalancing.attempts", 3);
-        this.rebalancingTimeoutInSeconds = props.getInt("rebalancing.timeout.seconds", 60 * 60);
+        this.rebalancingTimeoutInSeconds = props.getInt("rebalancing.timeout.seconds", 24 * 60 * 60);
         this.rebalancingServicePeriod = props.getInt("rebalancing.service.period.ms", 1000 * 60);
         this.maxParallelStoresRebalancing = props.getInt("max.parallel.stores.rebalancing", 3);
 
@@ -520,6 +545,116 @@ public class VoldemortConfig implements Serializable {
         if(minFileUtilization < 0 || minFileUtilization > 50)
             throw new IllegalArgumentException("minFileUtilization should be between 0 and 50 (both inclusive)");
         this.bdbCleanerMinFileUtilization = minFileUtilization;
+    }
+
+    /**
+     * If true, the checkpointer uses more resources in order to complete the
+     * checkpoint in a shorter time interval.
+     * 
+     * <ul>
+     * <li>property: "bdb.checkpointer.high.priority"</li>
+     * <li>default: false</li>
+     * </ul>
+     */
+    public boolean getBdbCheckpointerHighPriority() {
+        return bdbCheckpointerHighPriority;
+    }
+
+    public final void setBdbCheckpointerHighPriority(boolean bdbCheckpointerHighPriority) {
+        this.bdbCheckpointerHighPriority = bdbCheckpointerHighPriority;
+    }
+
+    /**
+     * The maximum number of log files in the cleaner's backlog, or zero if
+     * there is no limit
+     * 
+     * <ul>
+     * <li>property: "bdb.cleaner.max.batch.files"</li>
+     * <li>default: 0</li>
+     * <li>minimum: 0</li>
+     * <li>maximum: 100000</li>
+     * </ul>
+     */
+    public int getBdbCleanerMaxBatchFiles() {
+        return bdbCleanerMaxBatchFiles;
+    }
+
+    public final void setBdbCleanerMaxBatchFiles(int bdbCleanerMaxBatchFiles) {
+        if(bdbCleanerMaxBatchFiles < 0 || bdbCleanerMaxBatchFiles > 100000)
+            throw new IllegalArgumentException("bdbCleanerMaxBatchFiles should be between 0 and 100000 (both inclusive)");
+        this.bdbCleanerMaxBatchFiles = bdbCleanerMaxBatchFiles;
+    }
+
+    /**
+     * 
+     * The number of cleaner threads
+     * 
+     * <ul>
+     * <li>property: "bdb.cleaner.threads"</li>
+     * <li>default: 1</li>
+     * <li>minimum: 1</li>
+     * </ul>
+     */
+    public int getBdbCleanerThreads() {
+        return bdbCleanerThreads;
+    }
+
+    public final void setBdbCleanerThreads(int bdbCleanerThreads) {
+        if(bdbCleanerThreads <= 0)
+            throw new IllegalArgumentException("bdbCleanerThreads should be greater than 0");
+        this.bdbCleanerThreads = bdbCleanerThreads;
+    }
+
+    public int getBdbCleanerLookAheadCacheSize() {
+        return bdbCleanerLookAheadCacheSize;
+    }
+
+    public final void setBdbCleanerLookAheadCacheSize(int bdbCleanerLookAheadCacheSize) {
+        if(bdbCleanerLookAheadCacheSize < 0)
+            throw new IllegalArgumentException("bdbCleanerLookAheadCacheSize should be at least 0");
+        this.bdbCleanerLookAheadCacheSize = bdbCleanerLookAheadCacheSize;
+    }
+
+    /**
+     * 
+     * The lock timeout for all transactional and non-transactional operations.
+     * Value of zero disables lock timeouts i.e. a deadlock scenario will block
+     * forever
+     * 
+     * <ul>
+     * <li>property: "bdb.lock.timeout.ms"</li>
+     * <li>default: 500</li>
+     * <li>minimum: 0</li>
+     * <li>maximum: 75 * 60 * 1000</li>
+     * </ul>
+     */
+    public long getBdbLockTimeoutMs() {
+        return bdbLockTimeoutMs;
+    }
+
+    public final void setBdbLockTimeoutMs(long bdbLockTimeoutMs) {
+        if(bdbLockTimeoutMs < 0)
+            throw new IllegalArgumentException("bdbLockTimeoutMs should be greater than 0");
+        this.bdbLockTimeoutMs = bdbLockTimeoutMs;
+    }
+
+    public void setBdbLockNLockTables(int bdbLockNLockTables) {
+        if(bdbLockNLockTables < 1 || bdbLockNLockTables > 32767)
+            throw new IllegalArgumentException("bdbLockNLockTables should be greater than 0 and "
+                                               + "less than 32767");
+        this.bdbLockNLockTables = bdbLockNLockTables;
+    }
+
+    public int getBdbLockNLockTables() {
+        return bdbLockNLockTables;
+    }
+
+    public boolean getBdbFairLatches() {
+        return bdbFairLatches;
+    }
+
+    public void setBdbFairLatches(boolean bdbFairLatches) {
+        this.bdbFairLatches = bdbFairLatches;
     }
 
     /**
@@ -786,6 +921,14 @@ public class VoldemortConfig implements Serializable {
         return this.slopFrequencyMs;
     }
 
+    public void setSlopFrequencyMs(long slopFrequencyMs) {
+        this.slopFrequencyMs = slopFrequencyMs;
+    }
+
+    public long getRepairFrequencyMs() {
+        return this.repairFrequencyMs;
+    }
+
     public void setSocketTimeoutMs(int socketTimeoutMs) {
         this.socketTimeoutMs = socketTimeoutMs;
     }
@@ -870,6 +1013,30 @@ public class VoldemortConfig implements Serializable {
 
     public void setEnableSlop(boolean enableSlop) {
         this.enableSlop = enableSlop;
+    }
+
+    public boolean isSlopPusherJobEnabled() {
+        return enableSlopPusherJob;
+    }
+
+    public void setEnableSlopPusherJob(boolean enableSlopPusherJob) {
+        this.enableSlopPusherJob = enableSlopPusherJob;
+    }
+
+    public boolean isRepairEnabled() {
+        return this.enableRepair;
+    }
+
+    public void setEnableRepair(boolean enableRepair) {
+        this.enableRepair = enableRepair;
+    }
+
+    public boolean isGrandfatherEnabled() {
+        return this.enableGrandfather;
+    }
+
+    public void setGrandfather(boolean enableGrandfather) {
+        this.enableGrandfather = enableGrandfather;
     }
 
     public boolean isVerboseLoggingEnabled() {
@@ -1044,12 +1211,12 @@ public class VoldemortConfig implements Serializable {
         this.enableServerRouting = enableServerRouting;
     }
 
-    public int getNumCleanupPermits() {
-        return numCleanupPermits;
+    public int getNumScanPermits() {
+        return numScanPermits;
     }
 
-    public void setNumCleanupPermits(int numCleanupPermits) {
-        this.numCleanupPermits = numCleanupPermits;
+    public void setNumScanPermits(int numScanPermits) {
+        this.numScanPermits = numScanPermits;
     }
 
     public String getFailureDetectorImplementation() {

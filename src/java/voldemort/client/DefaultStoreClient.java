@@ -32,6 +32,7 @@ import voldemort.serialization.Serializer;
 import voldemort.store.InvalidMetadataException;
 import voldemort.store.Store;
 import voldemort.store.StoreCapabilityType;
+import voldemort.utils.JmxUtils;
 import voldemort.utils.Utils;
 import voldemort.versioning.InconsistencyResolver;
 import voldemort.versioning.InconsistentDataException;
@@ -71,12 +72,19 @@ public class DefaultStoreClient<K, V> implements StoreClient<K, V> {
         this.resolver = resolver;
         this.storeFactory = Utils.notNull(storeFactory);
         this.metadataRefreshAttempts = maxMetadataRefreshAttempts;
+
+        // Registering self to be able to bootstrap client dynamically via JMX
+        JmxUtils.registerMbean(this,
+                               JmxUtils.createObjectName(JmxUtils.getPackageName(this.getClass()),
+                                                         JmxUtils.getClassName(this.getClass())
+                                                                 + "." + storeName));
+
         bootStrap();
     }
 
     @JmxOperation(description = "bootstrap metadata from the cluster.")
     public void bootStrap() {
-        logger.info("bootstrapping metadata.");
+        logger.info("bootstrapping metadata for store " + this.storeName);
         this.store = storeFactory.getRawStore(storeName, resolver);
     }
 
@@ -189,7 +197,7 @@ public class DefaultStoreClient<K, V> implements StoreClient<K, V> {
         return result;
     }
 
-    public void put(K key, V value) {
+    public Version put(K key, V value) {
         List<Version> versions = getVersions(key);
         Versioned<V> versioned;
         if(versions.isEmpty())
@@ -203,7 +211,7 @@ public class DefaultStoreClient<K, V> implements StoreClient<K, V> {
             else
                 versioned.setObject(value);
         }
-        put(key, versioned);
+        return put(key, versioned);
     }
 
     public void put(K key, Versioned<V> versioned, Object transform)
@@ -229,12 +237,12 @@ public class DefaultStoreClient<K, V> implements StoreClient<K, V> {
         }
     }
 
-    public void put(K key, Versioned<V> versioned) throws ObsoleteVersionException {
+    public Version put(K key, Versioned<V> versioned) throws ObsoleteVersionException {
 
         for(int attempts = 0; attempts < this.metadataRefreshAttempts; attempts++) {
             try {
                 store.put(key, versioned, null);
-                return;
+                return versioned.getVersion();
             } catch(InvalidMetadataException e) {
                 bootStrap();
             }
