@@ -107,7 +107,7 @@ public class VoldemortNativeRequestHandler extends AbstractRequestHandler implem
             results = store.getVersions(key);
             outputStream.writeShort(0);
         } catch(VoldemortException e) {
-            e.printStackTrace();
+            logger.error(e.getMessage());
             writeException(outputStream, e);
             return;
         }
@@ -242,11 +242,6 @@ public class VoldemortNativeRequestHandler extends AbstractRequestHandler implem
         int keySize = inputStream.readInt();
         byte[] key = new byte[keySize];
         inputStream.readFully(key);
-
-        if(logger.isDebugEnabled()) {
-            logger.debug(new String(key));
-        }
-
         return new ByteArray(key);
     }
 
@@ -256,11 +251,6 @@ public class VoldemortNativeRequestHandler extends AbstractRequestHandler implem
             return null;
         byte[] transforms = new byte[size];
         inputStream.readFully(transforms);
-
-        if(logger.isDebugEnabled()) {
-            logger.debug(new String(transforms));
-        }
-
         return transforms;
     }
 
@@ -291,7 +281,7 @@ public class VoldemortNativeRequestHandler extends AbstractRequestHandler implem
             results = store.get(key, transforms);
             outputStream.writeShort(0);
         } catch(VoldemortException e) {
-            e.printStackTrace();
+            logger.error(e.getMessage());
             writeException(outputStream, e);
             return;
         }
@@ -324,6 +314,7 @@ public class VoldemortNativeRequestHandler extends AbstractRequestHandler implem
             results = store.getAll(keys, transforms);
             outputStream.writeShort(0);
         } catch(VoldemortException e) {
+            logger.error(e.getMessage());
             writeException(outputStream, e);
             return;
         }

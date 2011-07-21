@@ -28,6 +28,7 @@ import voldemort.cluster.Node;
 import voldemort.cluster.failuredetector.FailureDetector;
 import voldemort.store.InsufficientOperationalNodesException;
 import voldemort.store.InsufficientZoneResponsesException;
+import voldemort.store.InvalidMetadataException;
 import voldemort.store.nonblockingstore.NonblockingStore;
 import voldemort.store.nonblockingstore.NonblockingStoreCallback;
 import voldemort.store.routed.BasicPipelineData;
@@ -35,10 +36,8 @@ import voldemort.store.routed.Pipeline;
 import voldemort.store.routed.Response;
 import voldemort.store.routed.Pipeline.Event;
 import voldemort.store.routed.Pipeline.Operation;
-import voldemort.store.slop.HintedHandoff;
 import voldemort.utils.ByteArray;
 import voldemort.utils.Utils;
-import voldemort.versioning.Version;
 
 public class PerformParallelRequests<V, PD extends BasicPipelineData<V>> extends
         AbstractKeyBasedAction<ByteArray, V, PD> {
@@ -57,12 +56,6 @@ public class PerformParallelRequests<V, PD extends BasicPipelineData<V>> extends
 
     private final Event insufficientZonesEvent;
 
-    private final boolean enableHintedHandoff;
-
-    private final HintedHandoff hintedHandoff;
-
-    private final Version version;
-
     private byte[] transforms;
 
     public PerformParallelRequests(PD pipelineData,
@@ -74,8 +67,6 @@ public class PerformParallelRequests<V, PD extends BasicPipelineData<V>> extends
                                    int required,
                                    long timeoutMs,
                                    Map<Integer, NonblockingStore> nonblockingStores,
-                                   HintedHandoff hintedHandoff,
-                                   Version version,
                                    Event insufficientSuccessesEvent,
                                    Event insufficientZonesEvent) {
         super(pipelineData, completeEvent, key);
@@ -87,13 +78,6 @@ public class PerformParallelRequests<V, PD extends BasicPipelineData<V>> extends
         this.nonblockingStores = nonblockingStores;
         this.insufficientSuccessesEvent = insufficientSuccessesEvent;
         this.insufficientZonesEvent = insufficientZonesEvent;
-        this.enableHintedHandoff = hintedHandoff != null;
-        this.version = version;
-        this.hintedHandoff = hintedHandoff;
-    }
-
-    public boolean isHintedHandoffEnabled() {
-        return enableHintedHandoff;
     }
 
     public void execute(final Pipeline pipeline) {
@@ -128,8 +112,16 @@ public class PerformParallelRequests<V, PD extends BasicPipelineData<V>> extends
                     // Note errors that come in after the pipeline has finished.
                     // These will *not* get a chance to be called in the loop of
                     // responses below.
-                    if(pipeline.isFinished() && response.getValue() instanceof Exception)
-                        handleResponseError(response, pipeline, failureDetector);
+                    if(pipeline.isFinished() && response.getValue() instanceof Exception) {
+                        if(response.getValue() instanceof InvalidMetadataException) {
+                            logger.warn("Received invalid metadata problem after a successful "
+                                        + pipeline.getOperation().getSimpleName()
+                                        + " call on node " + node.getId() + ", store '"
+                                        + pipelineData.getStoreName() + "'");
+                        } else {
+                            handleResponseError(response, pipeline, failureDetector);
+                        }
+                    }
                 }
 
             };

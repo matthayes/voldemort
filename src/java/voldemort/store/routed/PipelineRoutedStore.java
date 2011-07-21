@@ -163,8 +163,6 @@ public class PipelineRoutedStore extends RoutedStore {
                                                                                                                                  storeDef.getRequiredReads(),
                                                                                                                                  timeoutMs,
                                                                                                                                  nonblockingStores,
-                                                                                                                                 null,
-                                                                                                                                 null,
                                                                                                                                  Event.INSUFFICIENT_SUCCESSES,
                                                                                                                                  Event.INSUFFICIENT_ZONES));
         pipeline.addEventAction(Event.INSUFFICIENT_SUCCESSES,
@@ -310,8 +308,6 @@ public class PipelineRoutedStore extends RoutedStore {
                                                                                                              storeDef.getRequiredReads(),
                                                                                                              timeoutMs,
                                                                                                              nonblockingStores,
-                                                                                                             null,
-                                                                                                             null,
                                                                                                              Event.INSUFFICIENT_SUCCESSES,
                                                                                                              Event.INSUFFICIENT_ZONES));
 
@@ -370,14 +366,6 @@ public class PipelineRoutedStore extends RoutedStore {
                                               handoffStrategy,
                                               pipelineData.getFailedNodes(),
                                               timeoutMs);
-
-        StoreRequest<Boolean> blockingDelete = new StoreRequest<Boolean>() {
-
-            public Boolean request(Store<ByteArray, byte[], byte[]> store) {
-                return store.delete(key, version);
-            }
-
-        };
 
         pipeline.addEventAction(Event.STARTED,
                                 new ConfigureNodes<Boolean, BasicPipelineData<Boolean>>(pipelineData,
