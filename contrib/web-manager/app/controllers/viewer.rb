@@ -13,6 +13,8 @@ get '/stores' do
     proxy = VoldemortAdmin::AdminProxy.new(@bootstrap_host, @bootstrap_port)
     @stores = proxy.stores
   rescue
+  ensure
+    proxy.close unless proxy.nil?
   end
   unless @stores.nil?    
     @stores.sort!
@@ -23,15 +25,20 @@ get '/stores' do
 end
 
 get '/store/:name' do |name|
+  begin
   @name = name
-  proxy = VoldemortAdmin::AdminProxy.new(@bootstrap_host, @bootstrap_port)
-  @store = proxy.store(name)
-  halt 404 unless @store
-  @limit = 25
-  fetch_count = @limit + 1
-  @entries = proxy.entries(name, fetch_count)
-  @has_more = @entries.size >= fetch_count
-  @entries = @entries.take(@limit)
+    proxy = VoldemortAdmin::AdminProxy.new(@bootstrap_host, @bootstrap_port)
+    @store = proxy.store(name)
+    halt 404 unless @store
+    @limit = 25
+    fetch_count = @limit + 1
+    @entries = proxy.entries(name, fetch_count)
+    @has_more = @entries.size >= fetch_count
+    @entries = @entries.take(@limit)
+  ensure
+    proxy.close unless proxy.nil?
+  end
+  
   haml :store
 end
 
@@ -41,21 +48,27 @@ include_class Java::voldemort.client.ClientConfig
 get '/store/:name/:key' do |name, key|
   config = ClientConfig.new
   config.setBootstrapUrls("tcp://" + @bootstrap_url)
-  factory = SocketStoreClientFactory.new(config)
-  client = factory.getStoreClient(name)
   
-  proxy = VoldemortAdmin::AdminProxy.new(@bootstrap_host, @bootstrap_port)
-  @store = proxy.store(name)
-  key_schema = @store.key_info.schema
+  begin  
+    factory = SocketStoreClientFactory.new(config)
+    client = factory.getStoreClient(name)
   
-  # TODO: This only supports keys which are int32 or strings.  Figure out how a string
-  # can be passed from the browser and converted to the appropriate type before calling
-  # client.getValue.
-  if (key_schema =~ /int32/)
-    client.getValue(java.lang.Integer.new(key.to_i)).to_s  
-  else
-    client.getValue(key).to_s
-  end
+    proxy = VoldemortAdmin::AdminProxy.new(@bootstrap_host, @bootstrap_port)
+    @store = proxy.store(name)
+    key_schema = @store.key_info.schema
+  
+    # TODO: This only supports keys which are int32 or strings.  Figure out how a string
+    # can be passed from the browser and converted to the appropriate type before calling
+    # client.getValue.
+    if (key_schema =~ /int32/)
+      client.getValue(java.lang.Integer.new(key.to_i)).to_s  
+    else
+      client.getValue(key).to_s
+    end
+  ensure
+    factory.close unless factory.nil?
+    proxy.close unless proxy.nil?
+  end    
 end
 
 get '/stores/new' do
@@ -78,8 +91,12 @@ post '/stores/new' do
   store_info.key_info = key_info
   store_info.value_info = value_info
   
-  proxy = VoldemortAdmin::AdminProxy.new(@bootstrap_host, @bootstrap_port)
-  proxy.create_store(store_info)
+  begin
+    proxy = VoldemortAdmin::AdminProxy.new(@bootstrap_host, @bootstrap_port)
+    proxy.create_store(store_info)
+  ensure
+    proxy.close unless proxy.nil?
+  end
   
   redirect url_for '/stores'
 end

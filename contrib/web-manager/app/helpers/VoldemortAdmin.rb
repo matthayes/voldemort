@@ -58,8 +58,10 @@ module VoldemortAdmin
       store_def = StoreDefinition.new(
         store_info.name,
         "bdb", #type
+        nil, #description
         key_def,
         value_def,
+        nil,
         RoutingTier::CLIENT,
         "consistent-routing", #routingStrategyType
         1, #replicationFactor
@@ -73,7 +75,11 @@ module VoldemortAdmin
         nil, #zoneCountReads
         nil, #zoneCountWrites
         nil, #retentionDays 
-        nil #retentionThrottleRate
+        nil, #retentionThrottleRate
+        nil, #factory
+        nil, #hintedHandoffStrategyType
+        nil, #hintPrefListSize
+        nil #owners
         )
         
         client.add_store(store_def)
@@ -125,6 +131,11 @@ module VoldemortAdmin
       defs.map do |store_def|
         StoreInfo.from_def(store_def)
       end
+    end
+    
+    def close
+      @client.stop unless @client.nil?
+      @client = nil
     end
     
     private
