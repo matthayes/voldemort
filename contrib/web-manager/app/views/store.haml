@@ -32,7 +32,7 @@
       $("#store_key_submit").click(function() {
         $("#store_value").text("");
         var key = $("#store_key").attr('value');
-        $.get('#{url_for ("/store/" + @name + "/")}'+ key, function(data) {
+        $.get('#{to ("/store/" + @name + "/")}'+ key, function(data) {
           $("#store_value").text(data);
         })
       })

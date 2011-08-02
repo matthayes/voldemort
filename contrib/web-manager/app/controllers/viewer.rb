@@ -5,7 +5,17 @@ require 'haml'
 include Java
 
 get '/' do
-  redirect url_for '/stores'
+  redirect to '/stores'
+end
+
+get '/clusters/:name' do |cluster|
+  clusters = @@clusters.find_all { |c| c['name'] == cluster }
+  if clusters && clusters.size > 0
+    cluster = clusters[0]
+    session["bootstrap_host"] = cluster['host'].to_s
+    session["bootstrap_port"] = cluster['port'].to_s    
+  end
+  redirect to '/stores'
 end
 
 get '/stores' do
@@ -98,7 +108,7 @@ post '/stores/new' do
     proxy.close unless proxy.nil?
   end
   
-  redirect url_for '/stores'
+  redirect to '/stores'
 end
 
 get '/config' do
@@ -108,5 +118,5 @@ end
 post '/config' do
   session["bootstrap_host"] = params["bootstrap_host"]
   session["bootstrap_port"] = params["bootstrap_port"]
-  redirect url_for '/stores'
+  redirect to '/stores'
 end

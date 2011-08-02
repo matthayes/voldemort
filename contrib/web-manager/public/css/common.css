@@ -80,3 +80,13 @@ body
 {
   width: 200px;
 }
+
+.clusters
+{
+  float: right;
+}
+
+.clusters li
+{
+  list-style: none;
+}

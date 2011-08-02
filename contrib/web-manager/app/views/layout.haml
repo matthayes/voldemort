@@ -1,18 +1,24 @@
 %html
   %head
-    %title Voldemort Cluster Management
-    %link{:rel => "stylesheet", :href => (url_for "/css/common.css"), :type => "text/css"}
+    %title Voldemort Web Manager
+    %link{:rel => "stylesheet", :href => (to "/css/common.css"), :type => "text/css"}
     %script{:src => "http://ajax.googleapis.com/ajax/libs/jquery/1.4.2/jquery.min.js"}
-    %script{:src => (url_for "/script/common.js")}
+    %script{:src => (to "/script/common.js")}
   %body  
     #header
       #title
         %h1 
-          %a{:href => (url_for "/stores")} Voldemort Cluster Management  
+          %a{:href => (to "/stores")} Voldemort Cluster Management  
         %p
           Bootstrap URL:
           = @bootstrap_url
-          %a{:href => (url_for "/config")} Change
+          %a{:href => (to "/config")} Change
+        - if @@clusters && @@clusters.size > 0
+          %div.clusters
+            %h3 Clusters:
+            - @@clusters.each do |cluster|
+              %li
+                %a{:href => (to "/clusters/#{cluster['name']}")}= "#{cluster['name']}"
     #outer
       #main
         = yield
