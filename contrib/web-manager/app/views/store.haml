@@ -57,7 +57,7 @@
           - @entries.each do |entry|
             %tr
               %td= "#{entry[0]}"
-              %td= "#{entry[1]}"
+              %td= "#{pretty_print entry[1]}"
           - if @has_more
             %td
             %td= "Limited to #{@limit} results"

@@ -14,6 +14,10 @@ Warbler::Config.new do |config|
   # Additional files/directories to include, above those in config.dirs
   config.includes = FileList["config.ru", "init.rb"]
 
+  if File.exists? "clusters.yml"
+    config.includes += FileList["clusters.yml"]
+  end
+
   # Additional files/directories to exclude
   # config.excludes = FileList["lib/tasks/*"]
 
@@ -96,7 +100,7 @@ Warbler::Config.new do |config|
 
   # Name of the war file (without the .war) -- defaults to the basename
   # of RAILS_ROOT
-  config.war_name = "VoldemortWebManager"
+  config.jar_name = "VoldemortWebManager"
 
   # Name of the MANIFEST.MF template for the war file. Defaults to a simple
   # MANIFEST.MF that contains the version of Warbler used to create the war file.

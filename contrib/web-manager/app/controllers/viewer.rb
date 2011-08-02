@@ -4,6 +4,20 @@ require 'haml'
 
 include Java
 
+helpers do
+  def pretty_print(val)
+    if val.class == String
+      val.inspect
+    elsif val.respond_to? :each_key
+      '{' + val.map { |k,v| pretty_print(k) + ' => ' + pretty_print(v) }.to_a.join(', ') + '}'
+    elsif val.respond_to? :each
+      '[' + val.map { |v| pretty_print(v) }.to_a.join(', ') + ']'
+    else
+      val.inspect
+    end
+  end
+end
+
 get '/' do
   redirect to '/stores'
 end
@@ -71,9 +85,9 @@ get '/store/:name/:key' do |name, key|
     # can be passed from the browser and converted to the appropriate type before calling
     # client.getValue.
     if (key_schema =~ /int32/)
-      client.getValue(java.lang.Integer.new(key.to_i)).to_s  
+      pretty_print client.getValue(java.lang.Integer.new(key.to_i))
     else
-      client.getValue(key).to_s
+      pretty_print client.getValue(key)
     end
   ensure
     factory.close unless factory.nil?
