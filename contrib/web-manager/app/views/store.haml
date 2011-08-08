@@ -41,27 +41,27 @@
   %label Value:
   %br
   %div{:id=>"store_value"}
-%div
-  %h4 Entries
-  - if (@entries)
-    - if (@entries.length > 0)
-      %table.entry_table
-        %colgroup
-          %col#entry_table_key
-          %col#entry_table_value
-        %thead
-          %tr
-            %th Key
-            %th Value
-        %tbody
-          - @entries.each do |entry|
-            %tr
-              %td= "#{entry[0]}"
-              %td= "#{pretty_print entry[1]}"
-          - if @has_more
-            %td
-            %td= "Limited to #{@limit} results"
-    - else
-      %div No entries were found.  If this is a read-only store then listing entries is not supported.
-  - else
-    %div Entries could not be fetched
+/ %div
+/   %h4 Entries
+/   - if (@entries)
+/     - if (@entries.length > 0)
+/       %table.entry_table
+/         %colgroup
+/           %col#entry_table_key
+/           %col#entry_table_value
+/         %thead
+/           %tr
+/             %th Key
+/             %th Value
+/         %tbody
+/           - @entries.each do |entry|
+/             %tr
+/               %td= "#{entry[0]}"
+/               %td= "#{pretty_print entry[1]}"
+/           - if @has_more
+/             %td
+/             %td= "Limited to #{@limit} results"
+/     - else
+/       %div No entries were found.  If this is a read-only store then listing entries is not supported.
+/   - else
+/     %div Entries could not be fetched

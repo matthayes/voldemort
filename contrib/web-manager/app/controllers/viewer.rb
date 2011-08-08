@@ -54,11 +54,12 @@ get '/store/:name' do |name|
     proxy = VoldemortAdmin::AdminProxy.new(@bootstrap_host, @bootstrap_port)
     @store = proxy.store(name)
     halt 404 unless @store
-    @limit = 25
-    fetch_count = @limit + 1
-    @entries = proxy.entries(name, fetch_count)
-    @has_more = @entries.size >= fetch_count
-    @entries = @entries.take(@limit)
+    # Disabling this code since seems to cause issues with Voldemort.
+    # @limit = 25
+    # fetch_count = @limit + 1
+    # @entries = proxy.entries(name, fetch_count)
+    # @has_more = @entries.size >= fetch_count
+    # @entries = @entries.take(@limit)
   ensure
     proxy.close unless proxy.nil?
   end
